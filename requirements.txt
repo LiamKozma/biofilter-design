@@ -1,0 +1,19 @@
+# Core scientific stack
+numpy>=1.26
+scipy>=1.11
+pandas>=2.0
+openpyxl>=3.1
+pyyaml>=6.0
+
+# Bayesian inference, model comparison, sensitivity
+emcee>=3.1
+arviz>=1.0
+SALib>=1.5
+corner>=2.2
+
+# Plotting
+matplotlib>=3.8
+
+# HPC parallelism (install on the cluster, against its MPI module)
+schwimmbad>=0.4
+mpi4py>=3.1

@@ -1,0 +1,24 @@
+# Micro configuration: validates that every script RUNS (no code errors).
+# Not scientifically meaningful -- counts are deliberately minimal so each stage
+# finishes in seconds on a slow machine. Real runs use sapelo2_full.yaml.
+run_name: tiny
+compounds: [Hexanal]
+
+calibration:
+  n_walkers: 18
+  n_steps: 6
+  n_burn: 2
+  backend: multiprocessing
+
+sobol:
+  n_base: 4                     # total = 4*(2*7+2) = 64 evals
+  backend: multiprocessing
+
+sbc:
+  n_datasets: 1
+  inner_walkers: 18
+  inner_steps: 6
+  inner_burn: 2
+  backend: multiprocessing
+
+seed: 20220509

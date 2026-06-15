@@ -1,0 +1,31 @@
+#!/bin/bash
+#SBATCH --job-name=biofilt-sbc
+#SBATCH --partition=batch
+#SBATCH --array=0-399%50        # 400 datasets, <=50 concurrent
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16      # each task runs one inner MCMC over its cores
+#SBATCH --mem-per-cpu=2G
+#SBATCH --time=08:00:00
+#SBATCH --output=logs/sbc_%A_%a.out
+#SBATCH --error=logs/sbc_%A_%a.err
+# UGA Sapelo2 -- Stage F: Simulation-Based Calibration as a job array.
+# Each array task = one full calibration on a simulated dataset. This is the
+# part of the project that genuinely cannot run on a single workstation: 400
+# independent MCMC runs, ~1e9 forward solves in aggregate.
+
+set -euo pipefail
+cd "$SLURM_SUBMIT_DIR"
+mkdir -p logs
+
+# Adjust module name to your Sapelo2 toolchain (`module spider Python`).
+module load Python/3.11
+source .venv/bin/activate
+export OMP_NUM_THREADS=1
+
+# Each task runs one full inner MCMC, parallelised across cpus-per-task cores
+# (sbc.backend: multiprocessing in the config).
+python scripts/05_sbc.py configs/sapelo2_full.yaml --task "$SLURM_ARRAY_TASK_ID"
+
+# After the array completes, aggregate with:
+#   python scripts/06_sbc_reduce.py configs/sapelo2_full.yaml

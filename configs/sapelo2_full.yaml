@@ -1,0 +1,31 @@
+# Full production configuration for UGA Sapelo2 (HPC).
+# These settings make the workload genuinely cluster-scale:
+#   calibration : 64 walkers x 40k steps x 3 compounds, ~0.6 s/eval
+#                 ~2.6e6 PDE-in-the-loop forward solves
+#   sobol       : n_base 16384, D~12 -> ~4.3e5 forward solves
+#   sbc         : 400 independent calibrations (each a full MCMC)
+#                 -> ~1e9 forward solves total; this is the part that
+#                 cannot be done on a workstation.
+run_name: sapelo2_full
+compounds: [3-MB, 2-MB, Hexanal]
+
+calibration:
+  # emcee parallelises ~half the ensemble per step, so the useful worker count is
+  # ~n_walkers/2. With 128 walkers, ~64 MPI workers are saturated (see calibrate.sub).
+  n_walkers: 128
+  n_steps: 40000
+  n_burn: 10000
+  backend: mpi
+
+sobol:
+  n_base: 16384
+  backend: mpi
+
+sbc:
+  n_datasets: 400               # run as a SLURM job array (one task per dataset)
+  inner_walkers: 48
+  inner_steps: 8000
+  inner_burn: 2000
+  backend: multiprocessing      # each array task uses one node's cores
+
+seed: 20220509

@@ -1,0 +1,23 @@
+# Tiny configuration for laptop correctness checks (minutes, not cluster-scale).
+# Validates the full pipeline end to end before committing Sapelo2 node-hours.
+run_name: local_smoke
+compounds: [Hexanal]
+
+calibration:
+  n_walkers: 16
+  n_steps: 150
+  n_burn: 50
+  backend: multiprocessing      # serial | multiprocessing | mpi | auto
+
+sobol:
+  n_base: 64                    # Saltelli base; total = n_base*(2D+2)
+  backend: multiprocessing
+
+sbc:
+  n_datasets: 3                 # number of simulated calibrations (smoke only)
+  inner_walkers: 18
+  inner_steps: 80
+  inner_burn: 30
+  backend: multiprocessing
+
+seed: 20220509
