@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=64            # 1 MPIPool master + 63 workers ~= n_walkers/2 (128/2)
 #SBATCH --cpus-per-task=1
-#SBATCH --mem-per-cpu=2G
+#SBATCH --mem=128G
 #SBATCH --time=24:00:00
 #SBATCH --output=logs/calib_%j.out
 #SBATCH --error=logs/calib_%j.err
@@ -28,4 +28,5 @@ source .venv/bin/activate      # env created per README (mpi4py installed here)
 export OMP_NUM_THREADS=1       # avoid oversubscription; parallelism is at MPI level
 
 # If pmix is unavailable on your Sapelo2 build, try --mpi=pmi2.
-srun --mpi=pmix python scripts/02_calibrate.py configs/sapelo2_full.yaml
+unset SLURM_MEM_PER_NODE
+srun --mpi=pmix --cpu-bind=none python scripts/02_calibrate.py configs/sapelo2_full.yaml

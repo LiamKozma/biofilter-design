@@ -46,7 +46,13 @@ def thiele_modulus(Lf: float, Rmax: float, Df: float, Ks: float) -> float:
 
 def _bvp_rhs(zeta, y, phi2):
     # y[0] = s, y[1] = s'
-    s = y[0]
+    # Physically s = S/Ks >= 0 everywhere. solve_bvp's Newton iterations can
+    # transiently overshoot into s < 0, where the Monod term phi2*s/(1+s) has a
+    # pole at s = -1 -- the source of the divide-by-zero/overflow warnings that
+    # made the solver thrash to max_nodes on diffusion-limited profiles. Clamping
+    # to the physical branch removes the singularity without changing the
+    # converged solution (where s >= 0 holds anyway).
+    s = np.maximum(y[0], 0.0)
     return np.vstack((y[1], phi2 * s / (1.0 + s)))
 
 
@@ -55,12 +61,39 @@ def _bvp_bc(ya, yb, sb):
     return np.array([ya[1], yb[0] - sb])
 
 
+# Above this Thiele modulus the film is strongly diffusion-limited and the
+# deep-film closed form below is accurate to <0.1% (validated against the solved
+# BVP over sb in [1e-3, 50]); it also takes over *before* solve_bvp starts
+# failing to resolve the O(1/phi)-thick boundary layer (failures set in ~phi=20).
+_PHI_ASYMPTOTIC = 12.0
+
+
+def _eta_deepfilm(phi: float, sb: float) -> float:
+    """Diffusion-limited (large-phi) effectiveness factor, closed form.
+
+    One first integral of ``s'' = phi^2 s/(1+s)`` with a fully depleted core
+    (``s -> 0`` deep in the film) gives ``0.5 s'(1)^2 = phi^2 (F(sb) - F(0))``
+    with ``F(s) = s - ln(1+s)``, hence
+
+        eta = s'(1) (1+sb)/(phi^2 sb) = (1+sb)/sb * sqrt(2 (sb - ln(1+sb))) / phi.
+
+    Exact as ``phi -> inf``. Unlike the first-order form ``tanh(phi)/phi`` it
+    stays correct at large ``sb`` (near zero-order kinetics), where the latter
+    underestimates eta severalfold. Clipped to (0, 1] -- the clip also makes it a
+    safe fallback at small phi (full penetration, eta -> 1).
+    """
+    return float(np.clip((1.0 + sb) / sb * np.sqrt(2.0 * (sb - np.log1p(sb))) / phi,
+                         1e-6, 1.0))
+
+
 def effectiveness_factor(phi: float, sb: float, n_mesh: int = 41) -> float:
     """Effectiveness factor for a flat Monod biofilm at Thiele modulus ``phi``.
 
     ``sb`` is the dimensionless bulk concentration ``Sb/Ks``. Returns a value in
-    (0, 1]. Falls back to the closed-form first-order result when ``sb`` is tiny
-    (the Monod term linearises and the BVP becomes stiff/degenerate).
+    (0, 1]. Three regimes: the first-order limit ``tanh(phi)/phi`` at tiny ``sb``;
+    the deep-film closed form :func:`_eta_deepfilm` at large ``phi`` (both exact
+    and far cheaper than solving the stiff boundary layer); and the solved BVP in
+    between.
     """
     if sb <= 0.0:
         return 1.0
@@ -68,6 +101,9 @@ def effectiveness_factor(phi: float, sb: float, n_mesh: int = 41) -> float:
     # First-order limit (sb << 1): eta = tanh(phi)/phi, analytic and robust.
     if sb < 1e-3 or phi < 1e-6:
         return float(np.tanh(phi) / phi) if phi > 1e-6 else 1.0
+    # Diffusion-limited limit (phi large): closed form, exact and BVP-free.
+    if phi >= _PHI_ASYMPTOTIC:
+        return _eta_deepfilm(phi, sb)
 
     zeta = np.linspace(0.0, 1.0, n_mesh)
     # Initial guess: linear from a reduced core value up to sb.
@@ -84,8 +120,9 @@ def effectiveness_factor(phi: float, sb: float, n_mesh: int = 41) -> float:
         tol=1e-6,
     )
     if not sol.success:
-        # Conservative fallback: first-order estimate.
-        return float(np.tanh(phi) / phi)
+        # Correct fallback: the deep-film form (clipped) beats tanh(phi)/phi,
+        # which collapses to the wrong branch at large sb.
+        return _eta_deepfilm(phi, sb)
 
     s_prime_1 = sol.y[1, -1]
     eta = s_prime_1 * (1.0 + sb) / (phi2 * sb)

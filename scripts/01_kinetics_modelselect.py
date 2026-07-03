@@ -13,13 +13,13 @@ the mechanistic calibration (Stage C onward).
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import arviz as az
 import emcee
 import numpy as np
 
-import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from biofilter import data, kinetics  # noqa: E402
 
@@ -54,10 +54,8 @@ def fit_order(order, t, y, ridx, n_runs, C0_obs):
 
     loglik = kinetics.pointwise_loglik(order, t, y, ridx, chain)
     idata = az.from_dict(
-        {
-            "posterior": {"k": np.exp(chain[None, :, 0])},
-            "log_likelihood": {"y": loglik[None, :, :]},
-        }
+        posterior={"k": np.exp(chain[None, :, 0])},
+        log_likelihood={"y": loglik[None, :, :]},
     )
     loo = az.loo(idata)                       # PSIS-LOO; elpd, higher is better
     k_samp = np.exp(chain[:, 0])
@@ -65,8 +63,8 @@ def fit_order(order, t, y, ridx, n_runs, C0_obs):
         "order": order,
         "k_median": float(np.median(k_samp)),
         "k_ci95": [float(np.percentile(k_samp, 2.5)), float(np.percentile(k_samp, 97.5))],
-        "elpd_loo": float(loo.elpd),
-        "p_loo": float(loo.p),
+        "elpd_loo": float(loo.elpd_loo),
+        "p_loo": float(loo.p_loo),
         "ess": float(ess),
         "_k_samples": k_samp,
     }

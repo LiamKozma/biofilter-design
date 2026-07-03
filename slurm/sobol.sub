@@ -21,4 +21,5 @@ source .venv/bin/activate
 export OMP_NUM_THREADS=1
 
 # If pmix is unavailable, try --mpi=pmi2.
-srun --mpi=pmix python scripts/03_sobol.py configs/sapelo2_full.yaml
+unset SLURM_MEM_PER_NODE
+srun --mpi=pmix --cpu-bind=none python scripts/03_sobol.py configs/sapelo2_full.yaml

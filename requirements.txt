@@ -10,6 +10,8 @@ emcee>=3.1
 arviz>=1.0
 SALib>=1.5
 corner>=2.2
+tqdm>=4.60          # emcee progress bars (run_mcmc(progress=True))
+h5py>=3.0           # calibration checkpoint/resume (emcee HDFBackend)
 
 # Plotting
 matplotlib>=3.8

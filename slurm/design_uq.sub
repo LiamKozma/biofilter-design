@@ -1,0 +1,28 @@
+#!/bin/bash
+#SBATCH --job-name=biofilt-design
+#SBATCH --partition=batch
+#SBATCH --nodes=1
+#SBATCH --ntasks=32            # 1 master + 31 workers for the 2000-draw pool.map
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=32G
+#SBATCH --time=02:00:00        # 2000 design solves; generous margin post-fix
+#SBATCH --output=logs/design_%j.out
+#SBATCH --error=logs/design_%j.err
+# UGA Sapelo2 -- Stage E: posterior-predictive design under uncertainty.
+#
+# 04_design_uq.py builds its pool from calibration.backend, which is "mpi" in
+# configs/sapelo2_full.yaml -- so it must be launched under MPI (like calibrate),
+# NOT run as a bare `python ...` on the login node (MPIPool needs >1 rank). It
+# reads results/calib_chain_sapelo2_full.npy, so it must run AFTER calibration.
+
+set -euo pipefail
+cd "$SLURM_SUBMIT_DIR"
+mkdir -p logs
+
+module load Python/3.11
+module load OpenMPI
+source .venv/bin/activate
+export OMP_NUM_THREADS=1
+
+unset SLURM_MEM_PER_NODE
+srun --mpi=pmix --cpu-bind=none python scripts/04_design_uq.py configs/sapelo2_full.yaml

@@ -96,7 +96,12 @@ def get_pool(backend: str = "auto", nproc: int | None = None):
             pool.close()
         return
 
-    # default: multiprocessing
-    nproc = nproc or os.cpu_count()
+    # default: multiprocessing. Size to the cores actually allocated to this
+    # process. SLURM confines a job-array task to --cpus-per-task via cpu
+    # affinity, but os.cpu_count() reports the whole physical node, so it would
+    # fork ~64 workers onto a 16-core task -- oversubscribing the cgroup and
+    # bloating memory with idle forked copies. sched_getaffinity respects it.
+    if nproc is None:
+        nproc = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else os.cpu_count()
     with _MPMaster(nproc) as p:
         yield p

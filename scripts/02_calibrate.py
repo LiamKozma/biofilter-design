@@ -34,16 +34,39 @@ def main(cfg_path):
     target = L.LogPosterior(cd)          # picklable across mp/MPI workers
     ndim = cd.n_params
     nwalk = ccfg["n_walkers"]
+    name = cfg["run_name"]
 
     # Initialise walkers from the prior, lightly jittered.
     p0 = np.array([L.prior_sample(rng, cd) for _ in range(nwalk)])
 
+    # Checkpoint/resume: persist the chain to HDF5 as it runs so a walltime kill
+    # can be *resumed* rather than restarted from zero (three earlier production
+    # runs hit the 24 h wall and left nothing on disk). Falls back to in-memory
+    # sampling if h5py is unavailable, so the run never fails for lack of it.
+    backend = None
+    try:
+        import h5py  # noqa: F401  -- only needed for the HDF5 backend
+        backend = emcee.backends.HDFBackend(str(RESULTS / f"calib_chain_{name}.h5"))
+    except Exception as exc:  # pragma: no cover - environment dependent
+        print(f"[warn] h5py unavailable ({exc!r}); running without checkpoint/resume")
+
     with get_pool(ccfg["backend"]) as pool:
         if not pool.is_master():
             return
-        sampler = emcee.EnsembleSampler(nwalk, ndim, target, pool=pool)
+        # .initialized guards .iteration: a fresh run has no HDF5 file yet, and
+        # reading .iteration on a missing file raises.
+        resuming = backend is not None and backend.initialized and backend.iteration > 0
+        if backend is not None and not resuming:
+            backend.reset(nwalk, ndim)          # fresh run: clear any stale file
+        sampler = emcee.EnsembleSampler(nwalk, ndim, target, pool=pool, backend=backend)
+        done = backend.iteration if backend is not None else 0
+        remaining = max(0, ccfg["n_steps"] - done)
+        if resuming:
+            print(f"resuming from checkpoint at step {done}/{ccfg['n_steps']}")
         t0 = time.time()
-        sampler.run_mcmc(p0, ccfg["n_steps"], progress=True)
+        if remaining > 0:
+            # emcee continues from the backend's last state when start is None.
+            sampler.run_mcmc(None if resuming else p0, remaining, progress=True)
         elapsed = time.time() - t0
 
     chain = sampler.get_chain(discard=ccfg["n_burn"], flat=True)
@@ -54,7 +77,6 @@ def main(cfg_path):
         tau, ess = np.full(ndim, np.nan), float("nan")
     acc = float(np.mean(sampler.acceptance_fraction))
 
-    name = cfg["run_name"]
     np.save(RESULTS / f"calib_chain_{name}.npy", chain)
     summary = {
         "run_name": name,

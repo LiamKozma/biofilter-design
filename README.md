@@ -36,7 +36,8 @@ src/biofilter/   biofilm BVP, column BVP, simulator, kinetics, likelihood, desig
 scripts/         00 extract · 01 kinetics · 02 calibrate · 03 sobol
                  04 design-UQ · 05 SBC · 06 SBC-reduce
 configs/         local_smoke.yaml (laptop) · sapelo2_full.yaml (cluster)
-slurm/           Sapelo2 batch scripts (MPI calibration, Sobol, SBC array)
+slurm/           Sapelo2 batch scripts: calibrate · sobol · design_uq ·
+                 sbc_array (full) · sbc_resubmit (only the timed-out tasks)
 results/         JSON summaries + posterior chains
 ```
 
@@ -60,13 +61,36 @@ python scripts/06_sbc_reduce.py configs/local_smoke.yaml
 # build an env that includes mpi4py against the cluster MPI module
 module load Python/3.11 OpenMPI
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt     # includes h5py (resume) + tqdm (progress)
 
-sbatch slurm/calibrate.sub          # Stage C, MPI
+# Stage C (MPI). Writes results/calib_chain_sapelo2_full.h5 as it runs, so a
+# walltime kill can be RESUMED by simply resubmitting this same script.
+JC=$(sbatch --parsable slurm/calibrate.sub)
+
+# Stage E depends on the calibration chain -- chain it so it auto-starts on
+# clean completion instead of erroring on a missing .npy.
+sbatch --dependency=afterok:$JC slurm/design_uq.sub
+
+# Stage D (Sobol) and Stage F (SBC) are independent of C/E and can run anytime.
 sbatch slurm/sobol.sub              # Stage D, MPI
-sbatch slurm/sbc_array.sub          # Stage F, 400-task array
+sbatch slurm/sbc_array.sub          # Stage F, full 400-task array
+
+# After the SBC array finishes, aggregate the rank files (light; login node OK):
 python scripts/06_sbc_reduce.py configs/sapelo2_full.yaml
 ```
+
+**Which stage runs where.** `calibrate`, `design_uq`, `sobol`, `sbc_array`
+(and `sbc_resubmit`) all do forward solves and/or use MPI, so they are `sbatch`
+batch jobs — never run them as bare `python` on a login node. Only
+`06_sbc_reduce.py` is light enough (it just tallies rank files) for the login
+node.
+
+**Resuming a partial SBC.** Each SBC task is fully determined by its seed
+(`default_rng(seed+1000+task)`), so if some array tasks time out you can rerun
+*only* those without redoing the rest -- put their IDs in
+`slurm/sbc_resubmit.sub`'s `--array=` line and `sbatch` it. `06_sbc_reduce.py`
+globs whatever task files are present, so it picks up the backfilled ones
+automatically.
 
 ## The model in one paragraph
 
@@ -77,3 +101,14 @@ gives the Thiele modulus `φ = Lf·√(Rmax/(Df·Ks))` and an effectiveness fact
 concentration obeys `Dax Cg'' − u Cg' − a·Lf·η(Cg/H)·Rmax(Cg/H)/(Ks+Cg/H) = 0`
 with Danckwerts boundary conditions. One forward solve = the η-table BVP family
 plus the column BVP; calibration runs ~10⁶ of them, SBC ~10⁹.
+
+**Effectiveness factor, three regimes.** `effectiveness_factor` avoids solving
+the stiff biofilm BVP where it is unnecessary or unreliable: the first-order
+form `tanh(φ)/φ` at tiny `sb`; the exact deep-film closed form
+`η = (1+sb)/sb·√(2(sb−ln(1+sb)))/φ` for `φ ≥ 12` (diffusion-limited, validated
+<0.1% against the solved BVP and correct at large `sb` where `tanh(φ)/φ`
+under-predicts several-fold); and the solved BVP in between, with the RHS clamped
+to the physical branch `s ≥ 0` so the solver cannot wander into the `1+s` pole.
+This is both faster (~15× on the η-table) and more accurate than solving the BVP
+everywhere — the naive version silently returned an order-of-magnitude-low `η`
+in the diffusion-limited corner where the solver failed to converge.

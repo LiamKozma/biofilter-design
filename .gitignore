@@ -1,7 +1,26 @@
+# Python
 __pycache__/
 *.pyc
+*.egg-info/
+.ipynb_checkpoints/
+
+# Environment
 .venv/
-logs/
-results/*.npy
-figures/*.png
 .DS_Store
+
+# HPC logs & SLURM stdout/stderr
+logs/
+
+# Generated pipeline outputs (regenerated on the cluster).
+# Small summary JSONs (kinetics, sobol, calib_summary, design_uq, sbc_reduce)
+# stay tracked as deliverables; only the bulky/numerous artifacts are ignored.
+# NB: git does not support inline (end-of-line) comments in .gitignore.
+results/*.npy
+results/*.h5
+results/sbc_*_task*.json
+figures/*.png
+
+# Ad-hoc diagnostics
+diag_report*.txt
+diga_report*.txt
+.claude/
