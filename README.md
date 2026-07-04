@@ -27,6 +27,37 @@ cluster (SLURM scripts in `slurm/`).
 > pipeline here is a subsequent, more rigorous re-analysis — not a claim about
 > what the original report contained.
 
+## v2: the identifiable pseudo-first-order reanalysis
+
+The full two-scale Monod model above is statistically calibrated (it passes SBC)
+but returns a design credible interval spanning three orders of magnitude. The
+cause is **structural non-identifiability**, not a bug: the bench inlet
+concentrations sit far below `Ks`, so the biofilter operates entirely in the
+pseudo-first-order regime where only the lumped ratio `Rmax/Ks` (an effective
+first-order rate) is identifiable — never `Rmax` and `Ks` separately. See
+`deepresearchresults.txt` for the full literature-grounded diagnosis.
+
+**v2** (`src/biofilter/firstorder.py`, `scripts/10_calibrate_fo.py`,
+`11_design_fo.py`, `12_sbc_fo.py`, `configs/first_order.yaml`) infers only what
+the data constrains — one first-order rate `k1` (1/s) and one noise `sigma` per
+compound — fixes `H` and `Df` to literature values, drops `Dax` (plug flow), and
+sizes the industrial bed on a conservative quantile of `k1`. The forward model
+`Cg(t) = Cin·exp(-k1·t)` is analytic, so the whole v2 pipeline runs on a laptop
+in minutes:
+
+```bash
+python scripts/10_calibrate_fo.py configs/first_order.yaml   # k1 posteriors
+python scripts/11_design_fo.py     configs/first_order.yaml   # design volume + CI
+python scripts/12_sbc_fo.py        configs/first_order.yaml   # SBC (local, no array)
+```
+
+Result: a tightly-identified `k1` per compound and a design volume of ~2400 m³
+(95% CI ~[1500, 3500], all draws feasible), whose conservative P95 sizing
+reproduces the original report's ~3500 m³ — now with an honest interval. The HPC
+machinery (`configs/sapelo2_full.yaml`) remains the tool you'd reach for *if* you
+collected experiments rich enough to identify the full Monod two-scale model
+(higher inlet load / shorter EBCT / transient step tests).
+
 ## Layout
 
 ```

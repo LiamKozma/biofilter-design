@@ -1,0 +1,42 @@
+{
+  "run_name": "first_order",
+  "model": "pseudo_first_order",
+  "target_compound": "Hexanal",
+  "target_removal": 0.95,
+  "n_draws": 384000,
+  "frac_feasible": 1.0,
+  "k1_1_per_s": {
+    "median": 0.05839362895970639,
+    "ci95": [
+      0.04047195872036701,
+      0.09257181069382205
+    ]
+  },
+  "ebrt_s": {
+    "median": 51.30238224483613,
+    "ci95": [
+      32.36117184163403,
+      74.01994784221858
+    ]
+  },
+  "volume_m3": {
+    "median": 2421.1988292509595,
+    "ci95": [
+      1527.2747180086376,
+      3493.3467650975585
+    ],
+    "ci50": [
+      2128.916695778301,
+      2732.9915189445433
+    ]
+  },
+  "conservative_design": {
+    "quantile": 0.95,
+    "volume_m3": 3276.8668185990955,
+    "length_m": 33.48655515916293,
+    "diameter_m": 11.16218505305431
+  },
+  "length_m_median": 30.273388048176503,
+  "diameter_m_median": 10.091129349392167,
+  "report_point_estimate_m3": 3500.0
+}

@@ -1,0 +1,31 @@
+# v2 reanalysis -- identifiable pseudo-first-order model.
+#
+# The forward model is analytic (plug-flow first order), so this whole pipeline
+# runs on a laptop in seconds -- no MPI, no HDF5 checkpoint, no cluster. That is
+# the honest consequence of fitting only what the sparse bench data identifies.
+# The HPC-scale machinery (configs/sapelo2_full.yaml) is what you would need to
+# calibrate the full two-scale Monod model *if* you had experiments rich enough
+# to identify it (higher inlet load / shorter EBCT / transient step tests).
+run_name: first_order
+compounds: [3-MB, 2-MB, Hexanal]
+
+calibration:
+  n_walkers: 64
+  n_steps: 8000
+  n_burn: 2000
+
+sbc:
+  n_datasets: 400          # 400 to cut Monte-Carlo noise in the rank histograms
+  inner_walkers: 24
+  inner_steps: 2500
+  inner_burn: 800
+  inner_thin: 12           # thin to ~independent draws before ranking (removes
+                           # autocorrelation bias in the scale params)
+
+design:
+  target_compound: Hexanal
+  target_removal: 0.95
+  # Conservative design quantile: size on the low tail of k1 (slow kinetics).
+  conservative_quantile: 0.95   # -> 95th percentile of required volume
+
+seed: 20220509

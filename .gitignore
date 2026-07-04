@@ -19,6 +19,11 @@ results/*.npy
 results/*.h5
 results/sbc_*_task*.json
 figures/*.png
+# ...except the v1-vs-v2 comparison figures, kept as tracked write-up deliverables:
+!figures/fig_identifiability.png
+!figures/fig_design_volume.png
+!figures/fig_fit.png
+!figures/fig_sbc.png
 
 # Ad-hoc diagnostics
 diag_report*.txt
